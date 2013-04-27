@@ -15,9 +15,7 @@ use Fcntl qw(:flock);
 my $work_dir = 'work';
 
 my $csv_file = 'feeds.csv';
-my $csv_site_url_column = 'site_url';
 my $csv_feed_url_column = 'feed_url';
-my $csv_author_column   = 'author';
 my $csv_id_column       = 'md5';
 
 chdir $work_dir;
@@ -41,9 +39,7 @@ sub get_contributors_from_csv {
     my @contributors;
     while ( my $row = $csv->getline_hr($csv_fh) ) {
         push @contributors, {
-            'site_url' => $row->{ $csv_site_url_column },
             'feed_url' => $row->{ $csv_feed_url_column },
-            'author'   => $row->{ $csv_author_column   },
             'id'       => $row->{ $csv_id_column       },
         };
     }
@@ -57,9 +53,7 @@ sub download_feeds {
     say "Downloading feeds...";
     my @feeds;
     while ( my $contributor = shift @contributors) {
-        my $site_url = $contributor->{'site_url'};
         my $feed_url = $contributor->{'feed_url'};
-        my $author   = $contributor->{'author'};
         my $id       = $contributor->{'id'};
         next unless $feed_url;
         next unless $id;

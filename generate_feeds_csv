@@ -12,14 +12,15 @@ use Digest::MD5 qw(md5_hex);
 use Fcntl qw(:flock);
 
 my $work_dir = 'work';
-my $csv_url = 'http://networkboot.org/planet/blogs.csv';
+
+my $csv_url  = 'http://networkboot.org/planet/blogs.csv';
 my $csv_file = 'blogs.csv';
 my $csv_site_url_column = 'site';
-my $csv_author_column = 'owner';
+my $csv_author_column   = 'owner';
+
 my $feed_csv_file = 'feeds.csv';
 
 chdir $work_dir;
-
 fetch_csv();
 my @sites = get_sites_from_blogs_csv();
 my @feeds = find_feeds(@sites);
