@@ -1,0 +1,72 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use autodie;
+use feature qw(say);
+
+use Text::CSV;
+use XML::Feed;
+use URI;
+use LWP::Protocol::https;
+use File::Slurp qw(write_file);
+
+my $work_dir = 'work';
+
+my $csv_file = 'feeds.csv';
+my $csv_site_url_column = 'site_url';
+my $csv_feed_url_column = 'feed_url';
+my $csv_author_column   = 'author';
+my $csv_id_column       = 'md5';
+
+chdir $work_dir;
+my @contributors = get_contributors_from_csv();
+download_feeds(@contributors);
+exit;
+
+############################
+
+sub get_contributors_from_csv {
+    say "Extracting contributors from $csv_file...";
+    my $csv = Text::CSV->new({
+        'sep_char' => ';',
+        'auto_diag' => 1,
+        'binary' => 1,
+    });
+    open my $csv_fh, '<', $csv_file;
+    my @columns = @{ $csv->getline($csv_fh) };
+    $csv->column_names(@columns);
+    my @contributors;
+    while ( my $row = $csv->getline_hr($csv_fh) ) {
+        push @contributors, {
+            'site_url' => $row->{ $csv_site_url_column },
+            'feed_url' => $row->{ $csv_feed_url_column },
+            'author'   => $row->{ $csv_author_column   },
+            'id'       => $row->{ $csv_id_column       },
+        };
+    }
+    close $csv_fh;
+    return @contributors;
+}
+
+sub download_feeds {
+    my (@contributors) = @_;
+    say "Downloading feeds...";
+    my @feeds;
+    while ( my $contributor = shift @contributors) {
+        my $site_url = $contributor->{'site_url'};
+        my $feed_url = $contributor->{'feed_url'};
+        my $author   = $contributor->{'author'};
+        my $id       = $contributor->{'id'};
+        next unless $feed_url;
+        next unless $id;
+        say "Downloading $feed_url...";
+        my $feed = XML::Feed->parse( URI->new($feed_url) );
+        say "\tUnable to find $feed_url" unless $feed;
+        say "\tError occured: " . XML::Feed->error if XML::Feed->error;
+        next unless $feed;
+        say "\tTitle: " . $feed->title . " (" . $feed->format . ")";
+        say "\tSaving to file: $id.xml";
+        write_file( "$id.xml", $feed->as_xml );
+    }
+}

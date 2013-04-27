@@ -7,8 +7,6 @@ use feature qw(say);
 
 use Text::CSV;
 use XML::Feed;
-use URI;
-use LWP::Protocol::https;
 use DateTime;
 use Regexp::Assemble;
 use File::Slurp qw(write_file);
@@ -20,6 +18,11 @@ my $csv_site_url_column = 'site_url';
 my $csv_feed_url_column = 'feed_url';
 my $csv_author_column   = 'author';
 my $csv_id_column       = 'md5';
+
+my $planet_title  = 'Blog posts related to network booting';
+my $planet_author = 'NetworkBoot.org';
+my $planet_link   = 'http://networkboot.org/planet/';
+my $planet_file   = 'planet.xml';
 
 my @keywords = (
     'networkboot.org',
@@ -34,43 +37,21 @@ my @keywords = (
         PXELinux SYSLinux
     )
 );
-my $agg_feed_title = 'Blog posts related to network booting';
-my $agg_feed_author = 'NetworkBoot.org';
-my $agg_feed_link = 'http://networkboot.org/planet/';
-my $agg_feed_file = 'planet.xml';
-
 my $keyword_re = build_keyword_re(@keywords);
 
 chdir $work_dir;
-
-# Extract blog URLs from CSV
 my @contributors = get_contributors_from_csv();
-# Fetch feeds
-my @feeds = fetch_feeds(@contributors);
-# Print feeds
-#say join("\n",
-#    map { $_->link . ':' . $_->title . ' (' . $_->format . ')' }
-#    @feeds
-#);
-# Get all feed entries in chronological order, newest first
+my @feeds = load_feeds(@contributors);
 my @entries = extract_entries(@feeds);
-# Print all entries
-#while ( my $entry = shift @entries ) {
-#    say $entry->issued . ': ' . $entry->title . ' by ' . $entry->author;
-#    say "\t" . $entry->link;
-#}
-# Generate aggregate feed of all entries
 my $feed = create_aggregate_feed(@entries);
-# Create aggregate feed
-say "Writing aggregate feed $agg_feed_file...";
-write_file($agg_feed_file, { binmode => ':raw' }, $feed->as_xml);
-
+say "Writing $planet_file...";
+write_file($planet_file, { binmode => ':raw' }, $feed->as_xml);
 exit;
 
 ############################
 
 sub get_contributors_from_csv {
-    say "Extracting contributors from CSV...";
+    say "Extracting contributors from $csv_file...";
     my $csv = Text::CSV->new({
         'sep_char' => ';',
         'auto_diag' => 1,
@@ -92,32 +73,51 @@ sub get_contributors_from_csv {
     return @contributors;
 }
 
-sub fetch_feeds {
+sub load_feeds {
     my (@contributors) = @_;
-    say "Fetching feeds...";
+    say "Loading feeds...";
     my @feeds;
+    my %file_map;
+    # Load feed files
     while ( my $contributor = shift @contributors) {
         my $site_url = $contributor->{'site_url'};
         my $feed_url = $contributor->{'feed_url'};
         my $author   = $contributor->{'author'};
+        my $id       = $contributor->{'id'};
         next unless $feed_url;
-        say "Fetching $feed_url...";
-        my $feed = XML::Feed->parse( URI->new($feed_url) );
-        say "\tUnable to find $feed_url" unless $feed;
+        next unless $id;
+        my $feed_file = $id . ".xml";
+        say "Reading $feed_file...";
+        my $feed = XML::Feed->parse( "$feed_file" );
+        say "\tUnable to read $feed_file" unless $feed;
         say "\tError occured: " . XML::Feed->error if XML::Feed->error;
         next unless $feed;
-        say "\tFeed title: " . $feed->title . " (" . $feed->format . ")";
+        say "\t" . $feed->format . ": $feed_url";
+        say "\t" . '"' . $feed->title . '"';
         # Convert it to Atom, if needed
         $feed = $feed->convert('Atom') unless $feed->format =~ m/Atom/;
         # Add some metadata
         $feed->link(      $site_url ) if $site_url;
         $feed->self_link( $feed_url ) if $feed_url;
         $feed->author(    $author   ) if $author;
+        $file_map{$feed_file} = 1;
         push @feeds, $feed;
+    }
+    # Remove stale feed files
+    say "Removing stale feed files...";
+    opendir my $dh, '.';
+    while ( readdir $dh ) {
+        next unless m/^[0-9a-f]{32}\.xml$/;
+        next if $file_map{$_};
+        say "\t$_";
+        unlink $_;
     }
     return @feeds;
 }
 
+# Get all feed entries in chronological order, newest first
+# Also filter out entries that don't match keywords
+# and rewrite title to include author name
 sub extract_entries {
     my (@feeds) = @_;
     my @entries;
@@ -171,12 +171,14 @@ sub build_keyword_re {
     return $ra->re;
 }
 
+# Generate aggregate feed of all entries
 sub create_aggregate_feed {
     my (@entries) = @_;
+    say "Creating aggregate feed...";
     my $feed = XML::Feed->new('Atom');
-    $feed->author( $agg_feed_author );
-    $feed->link(   $agg_feed_link   );
-    $feed->title(  $agg_feed_title  );
+    $feed->author( $planet_author );
+    $feed->link(   $planet_link   );
+    $feed->title(  $planet_title  );
     $feed->add_entry($_) for @entries;
     return $feed;
 }
