@@ -60,7 +60,7 @@ sub get_sites_from_blogs_csv {
 
 sub find_feeds {
     my (@sites) = @_;
-    say "Fetching feeds...";
+    say "Finding feeds...";
     my @feeds;
     while ( my $site = shift @sites) {
         say "Finding feeds for $site->{site_url}...";
@@ -97,7 +97,7 @@ sub find_feeds {
 
 sub write_feeds_csv {
     my (@feeds) = @_;
-    say "Writing feeds to CSV...";
+    say "Writing feeds to $feed_csv_file...";
     my $csv = Text::CSV->new({
         'sep_char'  => ';',
         'auto_diag' => 1,
