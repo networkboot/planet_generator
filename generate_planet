@@ -48,10 +48,10 @@ my @contributors = get_contributors_from_csv();
 # Fetch feeds
 my @feeds = fetch_feeds(@contributors);
 # Print feeds
-say join("\n",
-    map { $_->link . ':' . $_->title . ' (' . $_->format . ')' }
-    @feeds
-);
+#say join("\n",
+#    map { $_->link . ':' . $_->title . ' (' . $_->format . ')' }
+#    @feeds
+#);
 # Get all feed entries in chronological order, newest first
 my @entries = extract_entries(@feeds);
 # Print all entries
