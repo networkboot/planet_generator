@@ -14,10 +14,13 @@ use Regexp::Assemble;
 use File::Slurp qw(write_file);
 
 my $work_dir = 'work';
-my $csv_url = 'http://networkboot.org/planet/blogs.csv';
-my $csv_file = 'blogs.csv';
-my $csv_site_url_column = 'site';
-my $csv_author_column = 'owner';
+
+my $csv_file = 'feeds.csv';
+my $csv_site_url_column = 'site_url';
+my $csv_feed_url_column = 'feed_url';
+my $csv_author_column   = 'author';
+my $csv_id_column       = 'md5';
+
 my @keywords = (
     'networkboot.org',
     'network boot',
@@ -40,17 +43,15 @@ my $keyword_re = build_keyword_re(@keywords);
 
 chdir $work_dir;
 
-# Fetch blogs.csv
-fetch_csv();
 # Extract blog URLs from CSV
-my @urls = get_blog_urls_from_csv();
+my @contributors = get_contributors_from_csv();
 # Fetch feeds
-my @feeds = fetch_feeds(@urls);
+my @feeds = fetch_feeds(@contributors);
 # Print feeds
-#say join("\n",
-#    map { $_->link . ':' . $_->title . ' (' . $_->format . ')' }
-#    @feeds
-#);
+say join("\n",
+    map { $_->link . ':' . $_->title . ' (' . $_->format . ')' }
+    @feeds
+);
 # Get all feed entries in chronological order, newest first
 my @entries = extract_entries(@feeds);
 # Print all entries
@@ -68,13 +69,8 @@ exit;
 
 ############################
 
-sub fetch_csv {
-    say "Fetching $csv_url...";
-    system(qw(wget -q -O), $csv_file, $csv_url);
-}
-
-sub get_blog_urls_from_csv {
-    say "Extracting blog URLs from CSV...";
+sub get_contributors_from_csv {
+    say "Extracting contributors from CSV...";
     my $csv = Text::CSV->new({
         'sep_char' => ';',
         'auto_diag' => 1,
@@ -83,74 +79,40 @@ sub get_blog_urls_from_csv {
     open my $csv_fh, '<', $csv_file;
     my @columns = @{ $csv->getline($csv_fh) };
     $csv->column_names(@columns);
-    my @urls;
+    my @contributors;
     while ( my $row = $csv->getline_hr($csv_fh) ) {
-        push @urls, [
-            $row->{ $csv_site_url_column },
-            $row->{ $csv_author_column }
-        ];
+        push @contributors, {
+            'site_url' => $row->{ $csv_site_url_column },
+            'feed_url' => $row->{ $csv_feed_url_column },
+            'author'   => $row->{ $csv_author_column   },
+            'id'       => $row->{ $csv_id_column       },
+        };
     }
     close $csv_fh;
-    return @urls;
+    return @contributors;
 }
 
 sub fetch_feeds {
-    my (@urls) = @_;
+    my (@contributors) = @_;
     say "Fetching feeds...";
     my @feeds;
-    while ( my $url = shift @urls) {
-        my $author;
-        if ( ref($url) eq ref([]) ) {
-            $author = $url->[1];
-            $url = $url->[0];
-        }
-        say "Finding feeds for $url...";
-        my @feed_urls = XML::Feed->find_feeds($url);
-        unless ( @feed_urls ) {
-            say "\tNo feeds found for $url: " . ( XML::Feed->error || "" );
-            next;
-        }
-        my @candidate_feeds;
-        foreach my $feed_url ( @feed_urls ) {
-            $feed_url = URI->new($feed_url);
-            if ( $feed_url =~ m/comment/i ) {
-                say "\tSkipped $feed_url...";
-                next;
-            }
-            say "\tFetching $feed_url...";
-            my $feed = XML::Feed->parse( $feed_url );
-            unless ( $feed ) {
-                say "\tFetching $feed_url failed: " . ( XML::Feed->error || "" );
-                next;
-            }
-            if ( $feed->title =~ m/comment/i ) {
-                say "\tSkipped $feed_url (" . $feed->title . ")";
-                next;
-            }
-            say "\tFeed title: " . $feed->title . " (" . $feed->format . ")";
-            # Put Atom feeds at start of stack
-            if ( $feed->format =~ m/Atom/ ) {
-                unshift @candidate_feeds, [ $feed, $feed_url ];
-                next;
-            }
-            # Other feeds go at the end of the stack
-            push @candidate_feeds, [ $feed, $feed_url ];
-        }
-        # Get first candidate feed
-        my $feed_info = shift @candidate_feeds;
-        next unless $feed_info;
-        my $feed = $feed_info->[0];
-        my $feed_url = $feed_info->[1];
-        # Make sure it is valid
+    while ( my $contributor = shift @contributors) {
+        my $site_url = $contributor->{'site_url'};
+        my $feed_url = $contributor->{'feed_url'};
+        my $author   = $contributor->{'author'};
+        next unless $feed_url;
+        say "Fetching $feed_url...";
+        my $feed = XML::Feed->parse( URI->new($feed_url) );
+        say "\tUnable to find $feed_url" unless $feed;
+        say "\tError occured: " . XML::Feed->error if XML::Feed->error;
         next unless $feed;
-        # Convert it to Atom
+        say "\tFeed title: " . $feed->title . " (" . $feed->format . ")";
+        # Convert it to Atom, if needed
         $feed = $feed->convert('Atom') unless $feed->format =~ m/Atom/;
-        # Fix missing links in channel information
-        $feed->link( $url )           unless $feed->link;
-        $feed->self_link( $feed_url ) unless $feed->self_link;
-        if ( $author ) {
-            $feed->author( $author ); # unless $feed->author;
-        }
+        # Add some metadata
+        $feed->link(      $site_url ) if $site_url;
+        $feed->self_link( $feed_url ) if $feed_url;
+        $feed->author(    $author   ) if $author;
         push @feeds, $feed;
     }
     return @feeds;
@@ -165,7 +127,7 @@ sub extract_entries {
         while ( my $entry = shift @items ) {
             next unless $entry;
             next unless $entry->issued;
-            $entry->author( $feed->author ); # unless $entry->author;
+            $entry->author( $feed->author );
             $entry->base(   $feed->base   ) unless $entry->base;
             push @entries, $entry;
         }

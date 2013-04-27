@@ -1,0 +1,112 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use autodie;
+use feature qw(say);
+
+use Text::CSV;
+use Feed::Find;
+use LWP::Protocol::https;
+use Digest::MD5 qw(md5_hex);
+
+my $work_dir = 'work';
+my $csv_url = 'http://networkboot.org/planet/blogs.csv';
+my $csv_file = 'blogs.csv';
+my $csv_site_url_column = 'site';
+my $csv_author_column = 'owner';
+my $feed_csv_file = 'feeds.csv';
+
+chdir $work_dir;
+
+fetch_csv();
+my @sites = get_sites_from_blogs_csv();
+my @feeds = find_feeds(@sites);
+write_feeds_csv(@feeds);
+
+exit;
+
+############################
+
+sub fetch_csv {
+    say "Fetching $csv_url...";
+    system(qw(wget -q -O), $csv_file, $csv_url);
+}
+
+sub get_sites_from_blogs_csv {
+    say "Extracting sites from CSV...";
+    my $csv = Text::CSV->new({
+        'sep_char' => ';',
+        'auto_diag' => 1,
+        'binary' => 1,
+    });
+    open my $csv_fh, '<', $csv_file;
+    my @columns = @{ $csv->getline($csv_fh) };
+    $csv->column_names(@columns);
+    my @urls;
+    while ( my $row = $csv->getline_hr($csv_fh) ) {
+        push @urls, {
+            'site_url' => $row->{ $csv_site_url_column },
+            'author'   => $row->{ $csv_author_column }
+        };
+    }
+    close $csv_fh;
+    return @urls;
+}
+
+sub find_feeds {
+    my (@sites) = @_;
+    say "Fetching feeds...";
+    my @feeds;
+    while ( my $site = shift @sites) {
+        say "Finding feeds for $site->{site_url}...";
+        my @feed_urls = Feed::Find->find( $site->{'site_url'} );
+        unless ( @feed_urls ) {
+            say "\tNo feeds found: " . ( Feed::Find->error || "" );
+            next;
+        }
+        my @candidate_feed_urls;
+        foreach my $feed_url ( @feed_urls ) {
+            $feed_url = URI->new($feed_url);
+            if ( $feed_url =~ m/comment/i ) {
+                say "\tSkipped comment feed $feed_url...";
+                next;
+            }
+            say "\tFound feed $feed_url";
+            if ( $feed_url =~ m/atom/i ) {
+                unshift @candidate_feed_urls, $feed_url;
+                next;
+            }
+            push @candidate_feed_urls, $feed_url;
+        }
+        my $feed_url = shift @candidate_feed_urls;
+        next unless $feed_url;
+        say "\tSelected feed $feed_url";
+        push @feeds, {
+            %{ $site },
+            'feed_url' => $feed_url,
+            'md5'       => md5_hex($feed_url),
+        };
+    }
+    return @feeds;
+}
+
+sub write_feeds_csv {
+    my (@feeds) = @_;
+    say "Writing feeds to CSV...";
+    my $csv = Text::CSV->new({
+        'sep_char'  => ';',
+        'auto_diag' => 1,
+        'binary'    => 1,
+    });
+    open my $csv_fh, '>', $feed_csv_file;
+    if ( $csv->combine(qw(site_url feed_url author md5)) ) {
+        say $csv_fh $csv->string();
+    }
+    while ( my $feed = shift @feeds ) {
+        if ( $csv->combine( $feed->{'site_url'}, $feed->{'feed_url'}, $feed->{'author'}, $feed->{'md5'} ) ) {
+            say $csv_fh $csv->string();
+        }
+    }
+    close $csv_fh;
+}
