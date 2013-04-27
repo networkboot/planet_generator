@@ -10,6 +10,7 @@ use XML::Feed;
 use URI;
 use LWP::Protocol::https;
 use File::Slurp qw(write_file);
+use Fcntl qw(:flock);
 
 my $work_dir = 'work';
 
@@ -34,6 +35,7 @@ sub get_contributors_from_csv {
         'binary' => 1,
     });
     open my $csv_fh, '<', $csv_file;
+    flock($csv_fh, LOCK_SH);
     my @columns = @{ $csv->getline($csv_fh) };
     $csv->column_names(@columns);
     my @contributors;
@@ -45,6 +47,7 @@ sub get_contributors_from_csv {
             'id'       => $row->{ $csv_id_column       },
         };
     }
+    flock($csv_fh, LOCK_UN);
     close $csv_fh;
     return @contributors;
 }
@@ -67,6 +70,6 @@ sub download_feeds {
         next unless $feed;
         say "\tTitle: " . $feed->title . " (" . $feed->format . ")";
         say "\tSaving to file: $id.xml";
-        write_file( "$id.xml", $feed->as_xml );
+        write_file( "$id.xml", { binmode => ':raw', atomic => 1 }, $feed->as_xml );
     }
 }

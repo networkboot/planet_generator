@@ -9,6 +9,7 @@ use Text::CSV;
 use Feed::Find;
 use LWP::Protocol::https;
 use Digest::MD5 qw(md5_hex);
+use Fcntl qw(:flock);
 
 my $work_dir = 'work';
 my $csv_url = 'http://networkboot.org/planet/blogs.csv';
@@ -34,22 +35,24 @@ sub fetch_csv {
 }
 
 sub get_sites_from_blogs_csv {
-    say "Extracting sites from CSV...";
+    say "Extracting sites from $csv_file...";
     my $csv = Text::CSV->new({
         'sep_char' => ';',
         'auto_diag' => 1,
         'binary' => 1,
     });
     open my $csv_fh, '<', $csv_file;
+    flock($csv_fh, LOCK_SH);
     my @columns = @{ $csv->getline($csv_fh) };
     $csv->column_names(@columns);
     my @urls;
     while ( my $row = $csv->getline_hr($csv_fh) ) {
         push @urls, {
             'site_url' => $row->{ $csv_site_url_column },
-            'author'   => $row->{ $csv_author_column }
+            'author'   => $row->{ $csv_author_column   }
         };
     }
+    flock($csv_fh, LOCK_UN);
     close $csv_fh;
     return @urls;
 }
@@ -100,6 +103,7 @@ sub write_feeds_csv {
         'binary'    => 1,
     });
     open my $csv_fh, '>', $feed_csv_file;
+    flock($csv_fh, LOCK_EX);
     if ( $csv->combine(qw(site_url feed_url author md5)) ) {
         say $csv_fh $csv->string();
     }
@@ -108,5 +112,6 @@ sub write_feeds_csv {
             say $csv_fh $csv->string();
         }
     }
+    flock($csv_fh, LOCK_UN);
     close $csv_fh;
 }

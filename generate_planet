@@ -10,6 +10,7 @@ use XML::Feed;
 use DateTime;
 use Regexp::Assemble;
 use File::Slurp qw(write_file);
+use Fcntl qw(:flock);
 
 my $work_dir = 'work';
 
@@ -45,7 +46,7 @@ my @feeds = load_feeds(@contributors);
 my @entries = extract_entries(@feeds);
 my $feed = create_aggregate_feed(@entries);
 say "Writing $planet_file...";
-write_file($planet_file, { binmode => ':raw' }, $feed->as_xml);
+write_file($planet_file, { binmode => ':raw', atomic => 1 }, $feed->as_xml);
 exit;
 
 ############################
@@ -58,6 +59,7 @@ sub get_contributors_from_csv {
         'binary' => 1,
     });
     open my $csv_fh, '<', $csv_file;
+    flock($csv_fh, LOCK_SH);
     my @columns = @{ $csv->getline($csv_fh) };
     $csv->column_names(@columns);
     my @contributors;
@@ -69,6 +71,7 @@ sub get_contributors_from_csv {
             'id'       => $row->{ $csv_id_column       },
         };
     }
+    flock($csv_fh, LOCK_UN);
     close $csv_fh;
     return @contributors;
 }
