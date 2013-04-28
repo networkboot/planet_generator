@@ -129,6 +129,13 @@ sub extract_entries {
         my @items = $feed->entries;
         while ( my $entry = shift @items ) {
             next unless $entry;
+            # Try to work around the fact that some
+            # entries lack an issued date, but has
+            # a modified date. Use modification date
+            # as issued date.
+            unless ( $entry->issued ) {
+                $entry->issued( $entry->modified ) if $entry->modified;
+            }
             next unless $entry->issued;
             $entry->author( $feed->author );
             $entry->base(   $feed->base   ) unless $entry->base;
