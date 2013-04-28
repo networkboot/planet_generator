@@ -23,6 +23,35 @@ dir.  Symlink this file into your website somewhere.
 Install appropriate entries in your crontab to make it run on a regular
 basis.
 
+Creating a wrapper script similar to this (I usually name it `run.sh`) is
+probably the simplest way to use it:
+
+    #!/bin/bash
+
+    cd $HOME/src/planet_generator
+    mkdir -p work
+    ./find_feeds
+    ./download_feeds
+    ./generate_planet
+    if [ -r work/planet.xml ]; then
+        cp work/planet.xml /somewhere/else/planet.xml
+    fi
+    cd - >/dev/null
+
+Dependencies
+------------
+
+Install these packages with your favorite Perl CPAN client.
+
+* Text::CSV
+* XML::Feed
+* Feed::Find
+* URI
+* LWP::Protocol::https
+* File::Slurp
+* DateTime
+* Regexp::Assemble
+
 Copyright
 ---------
 
