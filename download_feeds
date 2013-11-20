@@ -58,12 +58,17 @@ sub download_feeds {
         next unless $feed_url;
         next unless $id;
         say "Downloading $feed_url...";
-        my $feed = XML::Feed->parse( URI->new($feed_url) );
+        my $feed = eval { XML::Feed->parse( URI->new($feed_url) ); };
+        warn "Unable to parse feed: $@" if $@;
+        next if $@;
         say "\tUnable to find $feed_url" unless $feed;
         say "\tError occured: " . XML::Feed->error if XML::Feed->error;
         next unless $feed;
         say "\tTitle: " . $feed->title . " (" . $feed->format . ")";
         say "\tSaving to file: $id.xml";
-        write_file( "$id.xml", { binmode => ':raw', atomic => 1 }, $feed->as_xml );
+        my $feed_xml = eval { $feed->as_xml; };
+        warn "Unable to convert feed to XML: $@" if $@;
+        next if $@;
+        write_file( "$id.xml", { binmode => ':raw', atomic => 1 }, $feed_xml );
     }
 }
