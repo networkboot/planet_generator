@@ -41,7 +41,8 @@ probably the simplest way to use it:
 Using Docker
 ------------
 
-Run `./build_docker_image` once to create the Docker image `planet_aggregator`.
+Run `./build_docker_image` once to create the Docker image
+`planet_generator`.
 
 Creating a wrapper script similar to this (I usually name it `run.sh`) is
 probably the simplest way to use it:
