@@ -38,6 +38,24 @@ probably the simplest way to use it:
     fi
     cd - >/dev/null
 
+Using Docker
+------------
+
+Run `./build_docker_image` once to create the Docker image `planet_aggregator`.
+
+Creating a wrapper script similar to this (I usually name it `run.sh`) is
+probably the simplest way to use it:
+
+    #!/bin/bash
+
+    pushd $HOME/src/planet_generator >/dev/null
+    mkdir -p work
+    ./run_docker_container
+    if [ -r work/planet.xml ]; then
+        cp work/planet.xml /somewhere/else/planet.xml
+    fi
+    popd >/dev/null
+
 Dependencies
 ------------
 
@@ -55,7 +73,7 @@ Install these packages with your favorite Perl CPAN client.
 Copyright
 ---------
 
-Robin Smidsrød <robin@smidsrod.no> 2013
+Robin Smidsrød <robin@smidsrod.no> 2013-2015
 
 License
 -------
