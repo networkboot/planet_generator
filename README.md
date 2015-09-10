@@ -57,6 +57,10 @@ probably the simplest way to use it:
     fi
     popd >/dev/null
 
+The Docker image entrypoint uses `gosu` from
+<https://github.com/tianon/gosu>.  The bundled version is compiled for Linux
+amd64.
+
 Dependencies
 ------------
 

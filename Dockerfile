@@ -16,6 +16,8 @@ RUN cpanm DateTime
 
 WORKDIR /code
 
+ENTRYPOINT ["/code/docker_entrypoint.sh"]
+
 CMD ./find_feeds \
  && ./download_feeds \
  && ./generate_planet
