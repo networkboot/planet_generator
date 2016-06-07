@@ -11,6 +11,11 @@ use URI;
 use LWP::Protocol::https;
 use File::Slurp qw(write_file);
 use Fcntl qw(:flock);
+use Encode qw(encode_utf8);
+use IO::Handle ();
+
+STDOUT->autoflush(1);
+STDERR->autoflush(1);
 
 my $work_dir = 'work';
 
@@ -64,11 +69,16 @@ sub download_feeds {
         say "\tUnable to find $feed_url" unless $feed;
         say "\tError occured: " . XML::Feed->error if XML::Feed->error;
         next unless $feed;
-        say "\tTitle: " . $feed->title . " (" . $feed->format . ")";
+        # $feed->title docs doesn't say if it returns character or byte string
+        my $title = $feed->title;
+        # Make sure it is always bytes
+        $title = encode_utf8($title) if utf8::is_utf8($title);
+        say "\tTitle: " . $title . " (" . $feed->format . ")";
         say "\tSaving to file: $id.xml";
         my $feed_xml = eval { $feed->as_xml; };
         warn "Unable to convert feed to XML: $@" if $@;
         next if $@;
-        write_file( "$id.xml", { binmode => ':raw', atomic => 1 }, $feed_xml );
+        my $binmode = utf8::is_utf8($feed_xml) ? ":encoding(UTF-8)" : ":raw";
+        write_file( "$id.xml", { binmode => $binmode, atomic => 1 }, $feed_xml );
     }
 }

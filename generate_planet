@@ -11,6 +11,11 @@ use DateTime;
 use Regexp::Assemble;
 use File::Slurp qw(write_file);
 use Fcntl qw(:flock);
+use Encode qw(encode_utf8);
+use IO::Handle ();
+
+STDOUT->autoflush(1);
+STDERR->autoflush(1);
 
 my $work_dir = 'work';
 
@@ -58,7 +63,7 @@ sub get_contributors_from_csv {
         'auto_diag' => 1,
         'binary' => 1,
     });
-    open my $csv_fh, '<', $csv_file;
+    open my $csv_fh, '<:encoding(UTF-8)', $csv_file;
     flock($csv_fh, LOCK_SH);
     my @columns = @{ $csv->getline($csv_fh) };
     $csv->column_names(@columns);
@@ -96,7 +101,11 @@ sub load_feeds {
         say "\tError occured: " . XML::Feed->error if XML::Feed->error;
         next unless $feed;
         say "\t" . $feed->format . ": $feed_url";
-        say "\t" . '"' . $feed->title . '"';
+        # $feed->title docs doesn't say if it returns character or byte string
+        my $title = $feed->title;
+        # Make sure it is always bytes
+        $title = encode_utf8($title) if utf8::is_utf8($title);
+        say qq{\t"} . $title . qq{"};
         # Convert it to Atom, if needed
         $feed = $feed->convert('Atom') unless $feed->format =~ m/Atom/;
         # Add some metadata
@@ -123,6 +132,7 @@ sub load_feeds {
 # and rewrite title to include author name
 sub extract_entries {
     my (@feeds) = @_;
+    say "Extracting entries...";
     my @entries;
     while ( my $feed = shift @feeds ) {
         next unless $feed;
@@ -133,12 +143,13 @@ sub extract_entries {
             # entries lack an issued date, but has
             # a modified date. Use modification date
             # as issued date.
-            unless ( $entry->issued ) {
-                $entry->issued( $entry->modified ) if $entry->modified;
-            }
+            $entry->issued( $entry->modified )
+                if ! $entry->issued && $entry->modified;
             next unless $entry->issued;
-            $entry->author( $feed->author );
-            $entry->base(   $feed->base   ) unless $entry->base;
+            $entry->author( $feed->author )
+                if $feed->author;
+            $entry->base( $feed->base )
+                 if ! $entry->base && $feed->base;
             push @entries, $entry;
         }
     }

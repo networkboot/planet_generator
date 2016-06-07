@@ -10,6 +10,10 @@ use Feed::Find;
 use LWP::Protocol::https;
 use Digest::MD5 qw(md5_hex);
 use Fcntl qw(:flock);
+use IO::Handle ();
+
+STDOUT->autoflush(1);
+STDERR->autoflush(1);
 
 my $work_dir = 'work';
 
@@ -42,7 +46,7 @@ sub get_sites_from_blogs_csv {
         'auto_diag' => 1,
         'binary' => 1,
     });
-    open my $csv_fh, '<', $csv_file;
+    open my $csv_fh, '<:encoding(UTF-8)', $csv_file;
     flock($csv_fh, LOCK_SH);
     my @columns = @{ $csv->getline($csv_fh) };
     $csv->column_names(@columns);
@@ -103,7 +107,7 @@ sub write_feeds_csv {
         'auto_diag' => 1,
         'binary'    => 1,
     });
-    open my $csv_fh, '>', $feed_csv_file;
+    open my $csv_fh, '>:encoding(UTF-8)', $feed_csv_file;
     flock($csv_fh, LOCK_EX);
     if ( $csv->combine(qw(site_url feed_url author md5)) ) {
         say $csv_fh $csv->string();
