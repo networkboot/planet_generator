@@ -110,6 +110,7 @@ sub load_feeds {
         $feed = $feed->convert('Atom') unless $feed->format =~ m/Atom/;
         # Add some metadata
         $feed->link(      $site_url ) if $site_url;
+        $feed->base(      $site_url ) if ! $feed->base;
         $feed->self_link( $feed_url ) if $feed_url;
         $feed->author(    $author   ) if $author;
         $file_map{$feed_file} = 1;
@@ -149,7 +150,7 @@ sub extract_entries {
             $entry->author( $feed->author )
                 if $feed->author;
             $entry->base( $feed->base )
-                 if ! $entry->base && $feed->base;
+                 if ! $entry->base;
             push @entries, $entry;
         }
     }
