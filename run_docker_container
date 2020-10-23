@@ -1,5 +1,5 @@
 #!/bin/bash
 
 pushd $(dirname $0) >/dev/null
-docker run -i --rm -v $(pwd):/code planet_generator "$@"
+docker run -i --rm --name planet_generator -v $(pwd):/code planet_generator "$@"
 popd >/dev/null
