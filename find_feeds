@@ -93,7 +93,7 @@ sub find_feeds {
         push @feeds, {
             %{ $site },
             'feed_url' => $feed_url,
-            'md5'       => md5_hex($feed_url),
+            'md5'       => md5_hex("$feed_url"), # stringify to avoid reference warning
         };
     }
     return @feeds;
